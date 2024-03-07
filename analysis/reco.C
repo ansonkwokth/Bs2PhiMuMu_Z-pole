@@ -1,6 +1,7 @@
 // example:
 // root -q 'reco.C(1)' means reconstruction signal event
 
+//TODO: check the _sameB part: why nu is not included
 
 #include <cmath>
 #include <iostream>
@@ -87,27 +88,28 @@ public:
 
 struct iFinalStatesIndex {
     // {{{ store the indexes of the final state particles 
-    // Kaon+, Kaon-, Muon+, Muon-
-    Int_t iKp = -1;
-    Int_t iKm = -1; 
-    Int_t iMup = -1;
-    Int_t iMum = -1;
+
+    // indeces of the final states
+    Int_t iKp = -1;     // K+
+    Int_t iKm = -1;     // K-
+    Int_t iMup = -1;    // mu+
+    Int_t iMum = -1;    // mu-
     // flag indicates if all final states are found
     Int_t foundAll = 0;
     // vertex info (KKmumu vertex)
     vector<Double_t> DV = { 99999, 99999, 99999 };    // fitted decay vertex
     vector<Double_t> PV = { 99999, 99999, 99999 };    // PV vertex (for truth level for now)
-    Float_t Chi2 = 99999;
-    Float_t Chi2_KK = 99999;
-    // 
-    Float_t mPhi = 99999;
+    Float_t Chi2 = 99999;       // fitted chi2 of the DV from 4 tracks 
+    Float_t Chi2_KK = 99999;    // fitted chi2 of the vertex from only K+K- tracks
 
-    Int_t _havePhi = 0;    // for truth level (check if the bkg having real phi)
-    Int_t _DimuRes = 0;    // for truth level (check if the Dimuon is from a resonace decay)
-    Int_t _isCascade = 0;
-    Int_t _BPID = -1;
-    Int_t _sameB = 0;
-    Int_t _pass = 0; // for truth level
+    // For the Bkg. (only for truth level): to understand the physics
+    Int_t _havePhi = 0;     // for truth level (check if the bkg having real phi)
+    Int_t _DimuRes = 0;     // for truth level (check if the Dimuon is from a resonace decay)
+    Int_t _isCascade = 0;   // if the final state particles are from the same B-had
+    Int_t _BPID = -1;       // if so, what is the PID of the B-had
+    Int_t _sameB = 0;       // check if the cascade is from fully/partially decay (if _sameB, that means the those 4 final states are the only visible final states from the B-ad)
+    Int_t _pass = 0;        // for truth level
+
     // }}}
 };
 
@@ -552,7 +554,6 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
                         iFS.Chi2 = Chi2_;
                         iFS.Chi2_KK = Chi2_KK_;
                         iFS.DV = { xvtx_[0], xvtx_[1], xvtx_[2] };
-                        iFS.mPhi = phiV.M();
                         iFS.iKp = iKp;
                         iFS.iKm = iKm;
                         iFS.iMup = iMup;
@@ -731,7 +732,6 @@ void reco(Int_t type) {
         // ||     Store     ||
         // ===================
         features->iEvt          =   i_en;
-        // features->mPhi          =   iFS.mPhi;
         features->mPhi          =   phiV.M();
         features->mBs           =   BsV.M();
         features->EBs           =   BsV.E();
