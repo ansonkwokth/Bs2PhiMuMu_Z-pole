@@ -449,11 +449,11 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
 
 
 
-// loop over the tracks, and store the indexes of the PID wanted into a vector
-// 'sign' param tell if the search is sign sensitive
-// 'sign=1/-1', then only search for the specified sign
 vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {  
-    // {{{
+    // {{{ store te indeces of the PID wanted into a vector
+    // loop over the tracks, and store the indexes of the PID wanted into a vector
+    // 'sign' param tell if the search is sign sensitive
+    // 'sign=1/-1', then only search for the specified sign
     Int_t nTracks = branchTrack->GetEntries();
     vector<Int_t> v = {};
     for (Int_t itr1 = 0; itr1 < nTracks; itr1++) {
