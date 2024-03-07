@@ -119,7 +119,6 @@ struct iFinalStatesIndex {
 Float_t calLength(Float_t X, Float_t Y, Float_t Z) { return pow(X*X + Y*Y + Z*Z, 0.5); }
 
 
-
 iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
     // {{{ truth level: check and store the signal info.
     iFinalStatesIndex iFS; 
@@ -438,7 +437,7 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
                 cout << endl;
             }
         }
-        cout << "................................................."<< endl;
+        // cout << "................................................."<< endl;
     }
 
 
@@ -471,10 +470,11 @@ vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {
 
 
 
-// find the final states
-// (start to reconstruct event)
+
 iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
-    // {{{ 
+    // {{{ find the final states
+    // find the final states
+    // (start to reconstruct event)
     iFinalStatesIndex iFS;
 
     // store all kaon PID
@@ -488,41 +488,51 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
     Float_t minChi2 = 99999;
     vector<Double_t> DV_;
 
+    // loop K+
     for (Int_t iKp : vKp) {
         Track* kaonp = (Track*)branchTrack->At(iKp);
+        // loop K-
         for (Int_t iKm : vKm) {
             Track* kaonm = (Track*)branchTrack->At(iKm);
-            // check the kaon and pion in the same direction
+            // check the K+ and K- in the same direction
             if (kaonp->P4().Px() * kaonm->P4().Px() + \
                 kaonp->P4().Py() * kaonm->P4().Py() + \
                 kaonp->P4().Pz() * kaonm->P4().Pz() < 0) continue;
             
-            TLorentzVector kaonpV, kaonmV, phiV;
-            kaonpV.SetPtEtaPhiM(kaonp->PT, kaonp->Eta, kaonp->Phi, mKPDG);
-            kaonmV.SetPtEtaPhiM(kaonm->PT, kaonm->Eta, kaonm->Phi, mKPDG);
-            phiV = kaonpV + kaonmV;
-
+            // loop mu+
             for (Int_t iMup : vMup) {
-                Track* muonP = (Track*)branchTrack->At(iMup);
+                Track* muonp = (Track*)branchTrack->At(iMup);
+                // check the K+ and mu+ in the same direction
+                if (kaonp->P4().Px() * muonp->P4().Px() + \
+                    kaonp->P4().Py() * muonp->P4().Py() + \
+                    kaonp->P4().Pz() * muonp->P4().Pz() < 0) continue;
+                // check the K- and mu+ in the same direction
+                if (kaonm->P4().Px() * muonp->P4().Px() + \
+                    kaonm->P4().Py() * muonp->P4().Py() + \
+                    kaonm->P4().Pz() * muonp->P4().Pz() < 0) continue;
+            
+                // loop mu-
                 for (Int_t iMum : vMum) {
-                    Track* muonM = (Track*)branchTrack->At(iMum);
-                    // check two muons are in the same direction
-                    if (muonP->P4().Px() * muonM->P4().Px() + \
-                        muonP->P4().Py() * muonM->P4().Py() + \
-                        muonP->P4().Pz() * muonM->P4().Pz() < 0) continue;
-                    // check each muon and the reconstructed phi are in the same direction
-                    if (muonP->P4().Px() * phiV.Px() + \
-                        muonP->P4().Py() * phiV.Py() + \
-                        muonP->P4().Pz() * phiV.Pz() < 0) continue;
-                    if (muonM->P4().Px() * phiV.Px() + \
-                        muonM->P4().Py() * phiV.Py() + \
-                        muonM->P4().Pz() * phiV.Pz() < 0) continue;
-                   
+                    Track* muonm = (Track*)branchTrack->At(iMum);
+                    // check the K+ and mu- in the same direction
+                    if (kaonp->P4().Px() * muonm->P4().Px() + \
+                        kaonp->P4().Py() * muonm->P4().Py() + \
+                        kaonp->P4().Pz() * muonm->P4().Pz() < 0) continue;
+                    // check the K- and mu- in the same direction
+                    if (kaonm->P4().Px() * muonm->P4().Px() + \
+                        kaonm->P4().Py() * muonm->P4().Py() + \
+                        kaonm->P4().Pz() * muonm->P4().Pz() < 0) continue;
+                    // check the mu+ and mu- in the same direction
+                    if (muonp->P4().Px() * muonm->P4().Px() + \
+                        muonp->P4().Py() * muonm->P4().Py() + \
+                        muonp->P4().Pz() * muonm->P4().Pz() < 0) continue;
+
+
+
                     // vertex fitting (all 4 final states tracks)
                     TVectorD* pr[4];
                     TMatrixDSym* cv[4];
                     vector<Int_t> idxes{ iKp, iKm, iMup, iMum };
-                    
                     Int_t ii = 0;
                     for (Int_t idx : idxes) {
                         Track* track = (Track*)branchTrack->At(idx);
@@ -539,7 +549,6 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
                     TVectorD* pr_KK[2];
                     TMatrixDSym* cv_KK[2];
                     vector<Int_t> idxes_KK{ iKp, iKm };
-                    
                     Int_t ii_KK = 0;
                     for (Int_t idx_KK : idxes_KK) {
                         Track* track = (Track*)branchTrack->At(idx_KK);
@@ -549,6 +558,7 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
                     }
                     VertexFit* Vtx_KK = new VertexFit(2, pr_KK, cv_KK);
                     Double_t Chi2_KK_ = Vtx_KK->GetVtxChi2();
+
                     // check if this is a better combination
                     if (iFS.Chi2 > Chi2_) {
                         iFS.Chi2 = Chi2_;
@@ -725,7 +735,7 @@ void reco(Int_t type) {
         cout << "....................................................................................................... " << iFS.Chi2 << endl;
         */
 
-        if (iFS_truth._sameB == 1) cout << " ///////////////////////////////////////////////////////////////////" << i_en << ";  " << iFS.Chi2 << endl;
+        // if (iFS_truth._sameB == 1) cout << " ///////////////////////////////////////////////////////////////////" << i_en << ";  " << iFS.Chi2 << endl;
 
 
         // ===================
