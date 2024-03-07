@@ -25,34 +25,30 @@ R__LOAD_LIBRARY(lib/libDelphes)
 
 
 
+// {{{ PDG constants
 TParticlePDG* muonPDG = TDatabasePDG::Instance()->GetParticle(13);
 Float_t mMuonPDG = muonPDG->Mass();
 
-TParticlePDG* ZPDG = TDatabasePDG::Instance()->GetParticle(13);
-Float_t mZPDG = ZPDG->Mass();
-Float_t widthZPDG = ZPDG->Width();
-
 TParticlePDG* KPDG = TDatabasePDG::Instance()->GetParticle(321);
 Float_t mKPDG = KPDG->Mass();
+// }}} 
 
 
 
-
-// store features, export for python
 class Features {
-    // {{{
+    // {{{ store features, export for python
 public:
     Int_t iEvt;
 
     // Vertex info.
-    Float_t Chi2;	// Bs decay vertex fit (from the 4 tracks)
+    Float_t Chi2;	    // Bs decay vertex fit (from the 4 tracks)
     Float_t Chi2_KK;	// Phi decay vertex fit (from the 2 Kaon tracks)
     Float_t DV_X;   	// fitted X
     Float_t DV_Y;   	// fitted Y
     Float_t DV_Z;   	// fitted Z
     Float_t DV;     	// the length from PV to fitted DV
     
-    // Kin info.
+    // reco info.
     Float_t mPhi;   	// m(KK)
     Float_t mDimu;  	// m(mumu)
     Float_t mBs;    	// m(KKmumu)
@@ -62,8 +58,9 @@ public:
     Float_t PKm;    	// P(K-)
     Float_t Pmup;   	// P(mu+)
     Float_t Pmum;   	// P(mu-)
+    Float_t cosTheta_dimu;  // opening angle of the pair of muons
 			
-    // Impact parameter
+    // Impact parameters
     Float_t D0Kp;   	// transverse IP of K+
     Float_t DZKp;   	// longitudinal IP of K+
     Float_t D0Km;   	// transverse IP of K-
@@ -72,8 +69,6 @@ public:
     Float_t DZmup;   	// longitudinal IP of mu+
     Float_t D0mum;   	// transverse IP of mu-
     Float_t DZmum;   	// longitudinal IP of mu-
-
-    Float_t cosTheta_dimu;  // opening angle of the pair of muons
 
     // truth level
     Float_t BBbar_truth;    // check if the Bs or bar{Bs}
@@ -90,20 +85,21 @@ public:
 
 
 
-// store the indexes of the final state particles 
-// Kaon+, Kaon-, Muon+, Muon-
-// flag indicates if all final states are found
 struct iFinalStatesIndex {
-    // {{{
+    // {{{ store the indexes of the final state particles 
+    // Kaon+, Kaon-, Muon+, Muon-
     Int_t iKp = -1;
     Int_t iKm = -1; 
     Int_t iMup = -1;
     Int_t iMum = -1;
+    // flag indicates if all final states are found
     Int_t foundAll = 0;
+    // vertex info (KKmumu vertex)
     vector<Double_t> DV = { 99999, 99999, 99999 };    // fitted decay vertex
     vector<Double_t> PV = { 99999, 99999, 99999 };    // PV vertex (for truth level for now)
     Float_t Chi2 = 99999;
     Float_t Chi2_KK = 99999;
+    // 
     Float_t mPhi = 99999;
 
     Int_t _havePhi = 0;    // for truth level (check if the bkg having real phi)
@@ -118,24 +114,23 @@ struct iFinalStatesIndex {
 
 
 // cal length of a 3D vector
-Float_t calLength(Float_t X, Float_t Y, Float_t Z) {
-    return pow(X*X + Y*Y + Z*Z, 0.5);
-}
+Float_t calLength(Float_t X, Float_t Y, Float_t Z) { return pow(X*X + Y*Y + Z*Z, 0.5); }
 
 
 
-// truth level: check and store the signal info.
 iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
-    // {{{
+    // {{{ truth level: check and store the signal info.
     iFinalStatesIndex iFS; 
     Int_t nParticles = branchParticle->GetEntries();
     Int_t BBbar_ = -1;  // check if Bs or bar{Bs}
 
-    // find that the Bs the decays to phi
+    // find the final state particles
     Int_t foundKaonKaon = 0;
     Int_t foundMup = 0;
     Int_t foundMum = 0;
+
     Int_t iBs = -99999;
+    // number of Bs
     Int_t nBs = 0;
 
     // check how many Bs
@@ -185,100 +180,17 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
 }
 
 
-// identifing the resonance bkg: e.g. Bs0 > J/psi mu mu, Bs0 > psi(2S) mu mu, Bs0 > phi mu mu
-// note that, the simulation is similar to the signal, which we didn't store the Bs0 events only
-// so, we need to do the selection here
-iFinalStatesIndex truthFindResBkg(TClonesArray* branchParticle, Int_t type) {
-    iFinalStatesIndex iFS; 
-    Int_t nParticles = branchParticle->GetEntries();
-
-    // check if it is signal
-    Int_t BBbar;
-    iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
-    if (iFS_sig._pass) return iFS;
-    
-    // check only one Bs
-    Int_t nBs = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (abs(particle->PID) == 531) nBs += 1;
-    }
-    if (nBs == 0) return iFS;
-
-    // check there are target final states
-    // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
-    Int_t foundKaonKaon = 0;
-    Int_t foundMup = 0;
-    Int_t foundMum = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        if (foundKaonKaon) break;
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        if (particleM->M1 == -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        for (Int_t ip2 = 0; ip2 < nParticles; ip2++) {
-            if (foundKaonKaon) break;
-            GenParticle* particle2 = (GenParticle*)branchParticle->At(ip2);
-            if (particle2->M1 == -1) continue;
-            GenParticle* particle2M = (GenParticle*)branchParticle->At(particle2->M1);
-            if (particle2M->M1 == -1) continue;
-            if (particle->PID == 321 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531 &&    // check that the K+ is from phi and is from Bs
-                particle2->PID == -321 && particle2->M1 == particle->M1 && particle2M->M1 == particleM->M1) {    // and the K- is from the same phi and same Bs
-                foundKaonKaon = 1;    
-            }
-        }
-    }
-    if (foundKaonKaon == 0) return iFS;
-
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        if (particleM->M1 == -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        if (type == 3) { // Bs0 > Jpsi( > mu mu) phi
-            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMum = 1;
-        } else if (type == 4) { // Bs0 > psi(2S) ( > Jpsi ( > mu mu ) X) K* 
-            if (particleMM->M1 == -1) continue;
-            GenParticle* particleMMM = (GenParticle*)branchParticle->At(particleMM->M1);
-            // note that in the simulation: we let psi(2S) decay freely
-            // we pick up the psi(2S) > J/psi X channels here
-            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMum = 1;
-        } else if (type == 5) { // Bs0 > phi( > mu mu) K*
-            if (particle->PID == 13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMum = 1;
-        } else {
-            cout << " Wrong input type" << endl;
-        }
-    }
-
-    if (foundKaonKaon == 1 && foundMup == 1 && foundMum == 1) iFS._pass = 1;
-    return iFS ;
-}
-    
 
 // checking background
 // specify for Comb samples first, to understand the physics
 iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
+    // {{{ 
     iFinalStatesIndex iFS; 
     Int_t nParticles = branchParticle->GetEntries();
 
     // check if it is signal
     Int_t BBbar;
     iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
-    // if the event is signal, then stop and return defalut (not identified, and skip)
-    /*
-    if (iFS_sig._pass) return iFS;
-    iFinalStatesIndex iFS_res3 = truthFindResBkg(branchParticle, 3);        
-    if (iFS_res3._pass) return iFS;
-    iFinalStatesIndex iFS_res4 = truthFindResBkg(branchParticle, 4);        
-    if (iFS_res4._pass) return iFS;
-    iFinalStatesIndex iFS_res5 = truthFindResBkg(branchParticle, 5);        
-    if (iFS_res5._pass) return iFS;
-    */
     
     // check there are target final states
     // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
@@ -529,6 +441,7 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
 
 
     return iFS;
+    // }}}
 }
 
 
@@ -538,6 +451,7 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
 // 'sign' param tell if the search is sign sensitive
 // 'sign=1/-1', then only search for the specified sign
 vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {  
+    // {{{
     Int_t nTracks = branchTrack->GetEntries();
     vector<Int_t> v = {};
     for (Int_t itr1 = 0; itr1 < nTracks; itr1++) {
@@ -550,6 +464,7 @@ vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {
         v.push_back(itr1);
     }
     return v;
+    // }}}
 }
 
 
@@ -557,6 +472,7 @@ vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {
 // find the final states
 // (start to reconstruct event)
 iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
+    // {{{ 
     iFinalStatesIndex iFS;
 
     // store all kaon PID
@@ -648,6 +564,7 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
         }
     }
     return  iFS;
+    // }}}
 }
 
 
@@ -666,17 +583,8 @@ void reco(Int_t type) {
     } else if (type == 2) {
         // inputFile = "../data/detector/ee2Z2b_comb_1M_seed0_1M_seed1_1M_seed2_2M_seed3.root";
         // oF_st = "../data/reco/ee2Z2b_comb_reco.root";
-        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0.root";
+        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0-10M_seed1-10M_seed2-10M_seed3.root";
         oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
-    } else if (type == 3) {
-        inputFile = "../data/detector/ee2Z2Bs2PhiJpsi_1M_seed0.root";
-        oF_st = "../data/reco/ee2Z2Bs2PhiJpsi_reco.root";
-    } else if (type == 4) {
-        inputFile = "../data/detector/ee2Z2Bs2PhiPsi_1M_seed0.root";
-        oF_st = "../data/reco/ee2Z2Bs2PhiPsi_reco.root";
-    } else if (type == 5) {
-        inputFile = "../data/detector/ee2Z2Bs2PhiPhi_100k_seed0.root";
-        oF_st = "../data/reco/ee2Z2Bs2PhiPhi_reco.root";
     }
 
 
@@ -747,10 +655,7 @@ void reco(Int_t type) {
         } else if (type == 2) {
             //iFS_truth = truthFindCombBkg(branchParticle, 1);     // print out the strings   
             iFS_truth = truthFindCombBkg(branchParticle, 0);        
-        } else if (type == 3 || type == 4 || type == 5) {
-            iFS_truth = truthFindResBkg(branchParticle, type);        
-        }
-        else {
+        } else {
             iFS_truth._pass = 1;
         }
         
@@ -826,7 +731,8 @@ void reco(Int_t type) {
         // ||     Store     ||
         // ===================
         features->iEvt          =   i_en;
-        features->mPhi          =   iFS.mPhi;
+        // features->mPhi          =   iFS.mPhi;
+        features->mPhi          =   phiV.M();
         features->mBs           =   BsV.M();
         features->EBs           =   BsV.E();
         features->PBs           =   BsV.P();
