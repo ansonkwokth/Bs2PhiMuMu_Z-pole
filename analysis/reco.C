@@ -1,14 +1,6 @@
 // example:
 // root -q 'reco.C(1)' means reconstruction signal event
 
-// TODO:
-// may need to check the truth level check for Psi
-// since the truth level rate is too small
-// check if Psi > mu mu is included
-
-// change lne 270
-
-
 
 #include <cmath>
 #include <iostream>
@@ -48,26 +40,38 @@ Float_t mKPDG = KPDG->Mass();
 
 // store features, export for python
 class Features {
+    // {{{
 public:
     Int_t iEvt;
 
     // Vertex info.
-    Float_t Chi2;   // Bs decay vertex fit (from the 4 tracks)
-    Float_t DV_X;   // fitted X
-    Float_t DV_Y;   // fitted Y
-    Float_t DV_Z;   // fitted Z
-    Float_t DV;     // the length from PV to fitted DV
+    Float_t Chi2;	// Bs decay vertex fit (from the 4 tracks)
+    Float_t Chi2_KK;	// Phi decay vertex fit (from the 2 Kaon tracks)
+    Float_t DV_X;   	// fitted X
+    Float_t DV_Y;   	// fitted Y
+    Float_t DV_Z;   	// fitted Z
+    Float_t DV;     	// the length from PV to fitted DV
     
-    Float_t Chi2_KK;   // Phi decay vertex fit (from the 2 Kaon tracks)
-        
     // Kin info.
-    Float_t mPhi;   // m(KK)
-    Float_t mDimu;  // m(mumu)
-    Float_t mBs;    // m(KKmumu)
-    Float_t EBs;    // E(KKmumu)
-    Float_t PBs;    // P(KKmumu)
-    Float_t PKp;    // P(K+)
-    Float_t PKm;    // P(K-)
+    Float_t mPhi;   	// m(KK)
+    Float_t mDimu;  	// m(mumu)
+    Float_t mBs;    	// m(KKmumu)
+    Float_t EBs;    	// E(KKmumu)
+    Float_t PBs;    	// P(KKmumu)
+    Float_t PKp;    	// P(K+)
+    Float_t PKm;    	// P(K-)
+    Float_t Pmup;   	// P(mu+)
+    Float_t Pmum;   	// P(mu-)
+			
+    // Impact parameter
+    Float_t D0Kp;   	// transverse IP of K+
+    Float_t DZKp;   	// longitudinal IP of K+
+    Float_t D0Km;   	// transverse IP of K-
+    Float_t DZKm;   	// longitudinal IP of K-
+    Float_t D0mup;   	// transverse IP of mu+
+    Float_t DZmup;   	// longitudinal IP of mu+
+    Float_t D0mum;   	// transverse IP of mu-
+    Float_t DZmum;   	// longitudinal IP of mu-
 
     Float_t cosTheta_dimu;  // opening angle of the pair of muons
 
@@ -81,7 +85,7 @@ public:
     Float_t PV_Y_truth;
     Float_t PV_Z_truth;
 
-    vector<Int_t> muMother;
+    // }}}
 };
 
 
@@ -90,6 +94,7 @@ public:
 // Kaon+, Kaon-, Muon+, Muon-
 // flag indicates if all final states are found
 struct iFinalStatesIndex {
+    // {{{
     Int_t iKp = -1;
     Int_t iKm = -1; 
     Int_t iMup = -1;
@@ -105,7 +110,9 @@ struct iFinalStatesIndex {
     Int_t _DimuRes = 0;    // for truth level (check if the Dimuon is from a resonace decay)
     Int_t _isCascade = 0;
     Int_t _BPID = -1;
+    Int_t _sameB = 0;
     Int_t _pass = 0; // for truth level
+    // }}}
 };
 
 
@@ -119,6 +126,7 @@ Float_t calLength(Float_t X, Float_t Y, Float_t Z) {
 
 // truth level: check and store the signal info.
 iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
+    // {{{
     iFinalStatesIndex iFS; 
     Int_t nParticles = branchParticle->GetEntries();
     Int_t BBbar_ = -1;  // check if Bs or bar{Bs}
@@ -173,8 +181,84 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
 
     *BBbar = BBbar_;
     return iFS;
+    // }}}
 }
 
+
+// identifing the resonance bkg: e.g. Bs0 > J/psi mu mu, Bs0 > psi(2S) mu mu, Bs0 > phi mu mu
+// note that, the simulation is similar to the signal, which we didn't store the Bs0 events only
+// so, we need to do the selection here
+iFinalStatesIndex truthFindResBkg(TClonesArray* branchParticle, Int_t type) {
+    iFinalStatesIndex iFS; 
+    Int_t nParticles = branchParticle->GetEntries();
+
+    // check if it is signal
+    Int_t BBbar;
+    iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
+    if (iFS_sig._pass) return iFS;
+    
+    // check only one Bs
+    Int_t nBs = 0;
+    for (Int_t ip = 0; ip < nParticles; ip++) {
+        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
+        if (abs(particle->PID) == 531) nBs += 1;
+    }
+    if (nBs == 0) return iFS;
+
+    // check there are target final states
+    // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
+    Int_t foundKaonKaon = 0;
+    Int_t foundMup = 0;
+    Int_t foundMum = 0;
+    for (Int_t ip = 0; ip < nParticles; ip++) {
+        if (foundKaonKaon) break;
+        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
+        if (particle->M1 == -1) continue;
+        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
+        if (particleM->M1 == -1) continue;
+        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
+        for (Int_t ip2 = 0; ip2 < nParticles; ip2++) {
+            if (foundKaonKaon) break;
+            GenParticle* particle2 = (GenParticle*)branchParticle->At(ip2);
+            if (particle2->M1 == -1) continue;
+            GenParticle* particle2M = (GenParticle*)branchParticle->At(particle2->M1);
+            if (particle2M->M1 == -1) continue;
+            if (particle->PID == 321 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531 &&    // check that the K+ is from phi and is from Bs
+                particle2->PID == -321 && particle2->M1 == particle->M1 && particle2M->M1 == particleM->M1) {    // and the K- is from the same phi and same Bs
+                foundKaonKaon = 1;    
+            }
+        }
+    }
+    if (foundKaonKaon == 0) return iFS;
+
+    for (Int_t ip = 0; ip < nParticles; ip++) {
+        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
+        if (particle->M1 == -1) continue;
+        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
+        if (particleM->M1 == -1) continue;
+        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
+        if (type == 3) { // Bs0 > Jpsi( > mu mu) phi
+            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMup = 1;
+            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMum = 1;
+        } else if (type == 4) { // Bs0 > psi(2S) ( > Jpsi ( > mu mu ) X) K* 
+            if (particleMM->M1 == -1) continue;
+            GenParticle* particleMMM = (GenParticle*)branchParticle->At(particleMM->M1);
+            // note that in the simulation: we let psi(2S) decay freely
+            // we pick up the psi(2S) > J/psi X channels here
+            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMup = 1;
+            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMum = 1;
+        } else if (type == 5) { // Bs0 > phi( > mu mu) K*
+            if (particle->PID == 13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMup = 1;
+            if (particle->PID == -13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMum = 1;
+        } else {
+            cout << " Wrong input type" << endl;
+        }
+    }
+
+    if (foundKaonKaon == 1 && foundMup == 1 && foundMum == 1) iFS._pass = 1;
+    return iFS ;
+}
+    
 
 // checking background
 // specify for Comb samples first, to understand the physics
@@ -186,7 +270,15 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
     Int_t BBbar;
     iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
     // if the event is signal, then stop and return defalut (not identified, and skip)
+    /*
     if (iFS_sig._pass) return iFS;
+    iFinalStatesIndex iFS_res3 = truthFindResBkg(branchParticle, 3);        
+    if (iFS_res3._pass) return iFS;
+    iFinalStatesIndex iFS_res4 = truthFindResBkg(branchParticle, 4);        
+    if (iFS_res4._pass) return iFS;
+    iFinalStatesIndex iFS_res5 = truthFindResBkg(branchParticle, 5);        
+    if (iFS_res5._pass) return iFS;
+    */
     
     // check there are target final states
     // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
@@ -309,22 +401,31 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
         iFS._BPID = particleB->PID;
     }
 
+    if (isCascade == 1) {
 
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        Midx = particle->M1;
-        GenParticle* particleM;
-        while (true) { 
-            particleM = (GenParticle*)branchParticle->At(Midx);
-            Midx_store = Midx;
-            Midx = particleM->M1;
-            if (abs(particleM->PID)/100 == 5 || Midx == -1) break;
+        Int_t sameMCount = 0;
+        for (Int_t ip = 0; ip < nParticles; ip++) {
+            GenParticle* particle = (GenParticle*)branchParticle->At(ip);
+            if (particle->M1 == -1) continue;
+            if (particle->Status != 1) continue;
+            Midx = particle->M1;
+            GenParticle* particleM;
+            while (true) { 
+                particleM = (GenParticle*)branchParticle->At(Midx);
+                Midx_store = Midx;
+                Midx = particleM->M1;
+                if (Midx == Bidx) {
+                    // cout << particle->PID << endl;
+                    sameMCount += 1;
+                    break;
+                }
+                if (abs(particleM->PID)/100 == 5 || Midx == -1) break;
+            }
+            
         }
-        if (Midx == -1 || abs(particleM->PID)/100 == 0) continue;
-        if (abs(particle->PID) == 13) muMs.push_back(Midx_store);
-        if (abs(particle->PID) == 321) kaMs.push_back(Midx_store);
-        // cout << particle->PID << "; " << particleM->PID << "; " << Midx_store << endl;
+        // cout << sameMCount << endl;
+        // cout << endl;
+        if (sameMCount == 4) iFS._sameB = 1;
     }
     
 
@@ -397,8 +498,8 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
             Midx = particle->M1;
 
             // check where the muon from 
-            // if (abs(particle->PID) ==  13 && Midx != -1){
             if ((abs(particle->PID) == 13 || abs(particle->PID) == 321) && Midx != -1){
+            // if ((particle->PID == 22 || abs(particle->PID) == 13 || abs(particle->PID) == 321) && Midx != -1){
                 // momentum of the muon
                 cout << "\n Particle: " << particle->PID << "; p=(" << particle->P4().Px() << ", " << particle->P4().Py() << ", "  << particle->P4().Pz() << ")"  << endl;
                 /*
@@ -431,81 +532,6 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
 }
 
 
-
-// identifing the resonance bkg: e.g. Bs0 > J/psi mu mu, Bs0 > psi(2S) mu mu, Bs0 > phi mu mu
-// note that, the simulation is similar to the signal, which we didn't store the Bs0 events only
-// so, we need to do the selection here
-iFinalStatesIndex truthFindResBkg(TClonesArray* branchParticle, Int_t type) {
-    iFinalStatesIndex iFS; 
-    Int_t nParticles = branchParticle->GetEntries();
-
-    // check if it is signal
-    Int_t BBbar;
-    iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
-    if (iFS_sig._pass) return iFS;
-    
-    // check only one Bs
-    Int_t nBs = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (abs(particle->PID) == 531) nBs += 1;
-    }
-    if (nBs == 0) return iFS;
-
-    // check there are target final states
-    // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
-    Int_t foundKaonKaon = 0;
-    Int_t foundMup = 0;
-    Int_t foundMum = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        if (foundKaonKaon) break;
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        if (particleM->M1 == -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        for (Int_t ip2 = 0; ip2 < nParticles; ip2++) {
-            if (foundKaonKaon) break;
-            GenParticle* particle2 = (GenParticle*)branchParticle->At(ip2);
-            if (particle2->M1 == -1) continue;
-            GenParticle* particle2M = (GenParticle*)branchParticle->At(particle2->M1);
-            if (particle2M->M1 == -1) continue;
-            if (particle->PID == 321 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531 &&    // check that the K+ is from phi and is from Bs
-                particle2->PID == -321 && particle2->M1 == particle->M1 && particle2M->M1 == particleM->M1) {    // and the K- is from the same phi and same Bs
-                foundKaonKaon = 1;    
-            }
-        }
-    }
-    if (foundKaonKaon == 0) return iFS;
-
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        if (particleM->M1 == -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        if (type == 3) { // Bs0 > Jpsi( > mu mu) phi
-            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 531) foundMum = 1;
-        } else if (type == 4) { // Bs0 > psi(2S) ( > Jpsi ( > mu mu ) X) K* 
-            if (particleMM->M1 == -1) continue;
-            GenParticle* particleMMM = (GenParticle*)branchParticle->At(particleMM->M1);
-            // note that in the simulation: we let psi(2S) decay freely
-            // we pick up the psi(2S) > J/psi X channels here
-            if (particle->PID == 13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 443 && abs(particleMM->PID) == 100443 && abs(particleMMM->PID) == 531) foundMum = 1;
-        } else if (type == 5) { // Bs0 > phi( > mu mu) K*
-            if (particle->PID == 13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMup = 1;
-            if (particle->PID == -13 && abs(particleM->PID) == 333 && abs(particleMM->PID) == 531) foundMum = 1;
-        } else {
-            cout << " Wrong input type" << endl;
-        }
-    }
-
-    if (foundKaonKaon == 1 && foundMup == 1 && foundMum == 1) iFS._pass = 1;
-    return iFS ;
-}
-    
 
 
 // loop over the tracks, and store the indexes of the PID wanted into a vector
@@ -638,8 +664,10 @@ void reco(Int_t type) {
         inputFile = "../data/detector/ee2Z2Bs2PhiMuMu_1M_seed0.root";
         oF_st = "../data/reco/ee2Z2Bs2PhiMuMu_reco.root";
     } else if (type == 2) {
-        inputFile = "../data/detector/ee2Z2b_comb_1M_seed0_1M_seed1_1M_seed2_2M_seed3.root";
-        oF_st = "../data/reco/ee2Z2b_comb_reco.root";
+        // inputFile = "../data/detector/ee2Z2b_comb_1M_seed0_1M_seed1_1M_seed2_2M_seed3.root";
+        // oF_st = "../data/reco/ee2Z2b_comb_reco.root";
+        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0.root";
+        oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
     } else if (type == 3) {
         inputFile = "../data/detector/ee2Z2Bs2PhiJpsi_1M_seed0.root";
         oF_st = "../data/reco/ee2Z2Bs2PhiJpsi_reco.root";
@@ -672,7 +700,7 @@ void reco(Int_t type) {
     tr.Branch("features", &features);
 
 
-    numberOfEntries = 500000;
+    // numberOfEntries = 10000;
 
     Int_t nEvt = 0; // number of true events
     Int_t nFS = 0;  // numver of events that have tagged final states
@@ -690,12 +718,21 @@ void reco(Int_t type) {
     Int_t nBsCascade = 0;
     Int_t nBsCascade_selected = 0;
 
+    Int_t nSameBCount = 0;
+    Int_t nSameBCount_selected = 0;
+
     
     
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
         if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
+
+
+        /*
+        if (i_en != 716 && i_en != 879 && i_en != 1387 && i_en != 1815 &&
+            i_en != 2220 && i_en != 2501 && i_en != 2887 && i_en != 4654) continue;
+        */
     
         cout.flush();
 
@@ -708,7 +745,7 @@ void reco(Int_t type) {
         if (type == 1) { 
             iFS_truth = truthFindSig(branchParticle, &BBbar);        
         } else if (type == 2) {
-            // iFS_truth = truthFindCombBkg(branchParticle, 1);     // print out the strings   
+            //iFS_truth = truthFindCombBkg(branchParticle, 1);     // print out the strings   
             iFS_truth = truthFindCombBkg(branchParticle, 0);        
         } else if (type == 3 || type == 4 || type == 5) {
             iFS_truth = truthFindResBkg(branchParticle, type);        
@@ -727,6 +764,7 @@ void reco(Int_t type) {
             if (abs(iFS_truth._BPID) == 511) nB0Cascade += 1; 
             if (abs(iFS_truth._BPID) == 521) nBpCascade += 1; 
             if (abs(iFS_truth._BPID) == 531) nBsCascade += 1; 
+            if (iFS_truth._sameB == 1) nSameBCount += 1; 
         }
 
       
@@ -742,6 +780,7 @@ void reco(Int_t type) {
             if (abs(iFS_truth._BPID) == 511) nB0Cascade_selected += 1; 
             if (abs(iFS_truth._BPID) == 521) nBpCascade_selected += 1; 
             if (abs(iFS_truth._BPID) == 531) nBsCascade_selected += 1; 
+            if (iFS_truth._sameB == 1) nSameBCount_selected += 1; 
         }
 
 
@@ -780,6 +819,7 @@ void reco(Int_t type) {
         cout << "....................................................................................................... " << iFS.Chi2 << endl;
         */
 
+        if (iFS_truth._sameB == 1) cout << " ///////////////////////////////////////////////////////////////////" << i_en << ";  " << iFS.Chi2 << endl;
 
 
         // ===================
@@ -800,6 +840,16 @@ void reco(Int_t type) {
         features->mDimu         =   dimuV.M();
         features->PKp           =   kaonpV.P();
         features->PKm           =   kaonmV.P();
+        features->Pmup          =   muonpV.P();
+        features->Pmum          =   muonmV.P();
+        features->D0Kp          =   kaonp->D0;
+        features->DZKp          =   kaonp->DZ;
+        features->D0Km          =   kaonm->D0;
+        features->DZKm          =   kaonm->DZ;
+        features->D0mup         =   muonp->D0;
+        features->DZmup         =   muonp->DZ;
+        features->D0mum         =   muonm->D0;
+        features->DZmum         =   muonm->DZ;
         features->cosTheta_dimu =   cosTheta;
         features->DV_X_truth    =   iFS_truth.DV[0];
         features->DV_Y_truth    =   iFS_truth.DV[1];
@@ -820,6 +870,8 @@ void reco(Int_t type) {
         cout << "Cascade from B0: " << nB0Cascade_selected << " (" << 100*float(nB0Cascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
         cout << "Cascade from B+: " << nBpCascade_selected << " (" << 100*float(nBpCascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
         cout << "Cascade from Bs: " << nBsCascade_selected << " (" << 100*float(nBsCascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
+        cout << "nSameBCount: " << nSameBCount << " (" << 100*float(nSameBCount)/float(nEvt) << "%)" << endl; 
+        cout << "nSameBCount_selected: " << nSameBCount_selected << " (" << 100*float(nSameBCount_selected)/float(nFS) << "%)" << endl; 
     }
 
     cout << " Reco. eff.: " << nFS << "/" << nEvt << "(" << float(nFS)/float(nEvt)*100 << "%)" << endl;
