@@ -104,12 +104,6 @@ struct iFinalStatesIndex {
     Float_t Chi2 = 99999;       // fitted chi2 of the DV from 4 tracks 
     Float_t Chi2_KK = 99999;    // fitted chi2 of the vertex from only K+K- tracks
 
-    // For the Bkg. (only for truth level): to understand the physics
-    Int_t _havePhi = 0;     // for truth level (check if the bkg having real phi)
-    Int_t _DimuRes = 0;     // for truth level (check if the Dimuon is from a resonace decay)
-    Int_t _isCascade = 0;   // if the final state particles are from the same B-had
-    Int_t _BPID = -1;       // if so, what is the PID of the B-had
-    Int_t _sameB = 0;       // check if the cascade is from fully/partially decay (if _sameB, that means the those 4 final states are the only visible final states from the B-ad)
     Int_t _pass = 0;        // for truth level
 
     // }}}
@@ -117,9 +111,27 @@ struct iFinalStatesIndex {
 
 
 
-// cal length of a 3D vector
-Float_t calLength(Float_t X, Float_t Y, Float_t Z) { return pow(X*X + Y*Y + Z*Z, 0.5); }
+Float_t calLength(Float_t X, Float_t Y, Float_t Z) { 
+    // {{{ cal length of a 3D vector
+    return pow(X*X + Y*Y + Z*Z, 0.5); 
+    // }}}
+}
 
+
+
+Float_t calCosTheta(TLorentzVector BsV, TLorentzVector muonpV, TLorentzVector muonmV) {
+    // {{{ getting the opening anlge of the pair of muons in the Bs rest frame
+    TVector3 BsV3 = BsV.BoostVector();
+    TLorentzVector muonpV_cp = muonpV;
+    TLorentzVector muonmV_cp = muonmV;
+    muonpV_cp.Boost(-BsV3);
+    muonmV_cp.Boost(-BsV3);
+    
+    Float_t cosTheta = (muonpV_cp.Px() * muonmV_cp.Px() + muonpV_cp.Py() * muonmV_cp.Py() + muonpV_cp.Pz() * muonmV_cp.Pz())
+                        / (calLength(muonpV_cp.Px(), muonpV_cp.Py(), muonpV_cp.Pz()) * calLength(muonmV_cp.Px(), muonmV_cp.Py(), muonmV_cp.Pz()));
+    return cosTheta;
+    // }}}
+}
 
 
 iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
@@ -351,7 +363,7 @@ void reco(Int_t type) {
     Features* features = new Features;
     tr.Branch("features", &features);
 
-    numberOfEntries = 100;
+
 
     Int_t nEvt = 0; // number of true events
     Int_t nFS = 0;  // numver of events that have tagged final states
@@ -359,6 +371,7 @@ void reco(Int_t type) {
     
 
 
+    // numberOfEntries = 100;
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
@@ -377,20 +390,11 @@ void reco(Int_t type) {
             continue;
         } else if (type == 1 && iFS_truth._pass != 1) { // targeting signal, and we found it in truth level
             continue;   
-        } else if (type == 2 && iFS_truth._pass == 1) {
+        } else if (type == 2 && iFS_truth._pass == 1) { // targeting Z>bb bkg., and we found it is not signal event
             continue;
         }
         nEvt += 1;
 
-        if (iFS_truth._havePhi == 1) nHavePhi += iFS_truth._havePhi;
-        if (iFS_truth._DimuRes == 1) nDimuRes += iFS_truth._DimuRes;
-        if (iFS_truth._isCascade == 1) {
-            nIsCascade += 1;
-            if (abs(iFS_truth._BPID) == 511) nB0Cascade += 1; 
-            if (abs(iFS_truth._BPID) == 521) nBpCascade += 1; 
-            if (abs(iFS_truth._BPID) == 531) nBsCascade += 1; 
-            if (iFS_truth._sameB == 1) nSameBCount += 1; 
-        }
 
       
         // ===================
@@ -400,6 +404,7 @@ void reco(Int_t type) {
         iFinalStatesIndex iFS = findFinalStatesIndex(branchTrack);
         if (iFS.foundAll == 0) continue;
         nFS += 1;
+
 
 
         // define final state lorentz vector 
@@ -417,15 +422,7 @@ void reco(Int_t type) {
         BsV = phiV + muonpV + muonmV;
         dimuV = muonpV + muonmV;
 
-        // getting the opening anlge of the pair of muons in the Bs rest frame
-        TVector3 BsV3 = BsV.BoostVector();
-        TLorentzVector muonpV_cp = muonpV;
-        TLorentzVector muonmV_cp = muonmV;
-        muonpV_cp.Boost(-BsV3);
-        muonmV_cp.Boost(-BsV3);
-        
-        Float_t cosTheta = (muonpV_cp.Px() * muonmV_cp.Px() + muonpV_cp.Py() * muonmV_cp.Py() + muonpV_cp.Pz() * muonmV_cp.Pz())
-                            / (calLength(muonpV_cp.Px(), muonpV_cp.Py(), muonpV_cp.Pz()) * calLength(muonmV_cp.Px(), muonmV_cp.Py(), muonmV_cp.Pz()));
+        Float_t cosTheta = calCosTheta(BsV, muonpV, muonmV);  
 
 
         // ===================
