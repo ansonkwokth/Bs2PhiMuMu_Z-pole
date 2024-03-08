@@ -1,7 +1,9 @@
 // example:
 // root -q 'reco.C(1)' means reconstruction signal event
 
-//TODO: check the _sameB part: why nu is not included
+//TODO: 
+// check the _sameB part: why nu is not included
+// change the "same direction requirement
 
 #include <cmath>
 #include <iostream>
@@ -131,8 +133,7 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
     Int_t foundMum = 0;
 
     Int_t iBs = -99999;
-    // number of Bs
-    Int_t nBs = 0;
+    Int_t nBs = 0;  // number of Bs
 
     // check how many Bs
     for (Int_t ip = 0; ip < nParticles; ip++) {
@@ -147,7 +148,8 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
         // check phi is from Bs
         GenParticle* particle = (GenParticle*)branchParticle->At(ip);
         if (abs(particle->PID) != 333) continue;
-        if (particle->M1 == -1) continue; GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
+        if (particle->M1 == -1) continue; 
+        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
         if (abs(particleM->PID) != 531) continue;
         
         // check KK from phi
@@ -171,8 +173,7 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
         if (particle->PID == -13 && particle->M1 == iBs) foundMum = 1;
     }
 
-    // note that it may also not be always true for signal event. 
-    // Because in the simulation at this stage didn't force to only store Bs samples.
+    // note that it may also not be always true for signal event (there are nBs=2 cases). 
     if (foundKaonKaon == 1 && foundMup == 1 && foundMum == 1) iFS._pass = 1;
 
     *BBbar = BBbar_;
@@ -182,6 +183,8 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
 
 
 
+
+// clean it 
 // checking background
 // specify for Comb samples first, to understand the physics
 iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
@@ -236,6 +239,7 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
         // if the second muon has the same mother as the first one
         if (muMidx == particle->M1) {
             GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
+            cout << particleM->PID << endl;
             sameM = 1;
             break;
         }
@@ -248,10 +252,16 @@ iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
     if (sameM) { 
         for (Int_t ip = 0; ip < nParticles; ip++) {
             GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-            if (particle->M1 == muMidx) nSame += 1;
+            if (particle->M1 == muMidx) {
+                nSame += 1;
+                
+                cout << " " << particle->PID << endl;
+            }
         }
     }
+    cout << nSame << endl;
     if (nSame == 2) iFS._DimuRes = 1; 
+    cout << "... " << iFS._DimuRes << endl;
 
     // ------------------------------------------------------------------------------------------------------------------------------
     // // check if the 4 final state particles are from the same b
@@ -619,7 +629,7 @@ void reco(Int_t type) {
     tr.Branch("features", &features);
 
 
-    // numberOfEntries = 10000;
+    numberOfEntries = 100;
 
     Int_t nEvt = 0; // number of true events
     Int_t nFS = 0;  // numver of events that have tagged final states
@@ -699,6 +709,7 @@ void reco(Int_t type) {
             if (iFS_truth._sameB == 1) nSameBCount_selected += 1; 
         }
 
+        cout << "Pass" << endl;
 
         // define final state lorentz vector 
         TLorentzVector kaonpV, kaonmV, phiV, muonpV, muonmV, BsV, dimuV;
