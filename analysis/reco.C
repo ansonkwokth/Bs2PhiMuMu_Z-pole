@@ -121,6 +121,7 @@ struct iFinalStatesIndex {
 Float_t calLength(Float_t X, Float_t Y, Float_t Z) { return pow(X*X + Y*Y + Z*Z, 0.5); }
 
 
+
 iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
     // {{{ truth level: check and store the signal info.
     iFinalStatesIndex iFS; 
@@ -140,7 +141,7 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
         GenParticle* particle = (GenParticle*)branchParticle->At(ip);
         if (abs(particle->PID) == 531) nBs += 1;
     }
-    if (nBs != 1) return iFS;
+    // if (nBs != 1) return iFS;
 
     // first search for phi that is from the Bs
     // and check its daughters are K+ and K-
@@ -183,280 +184,6 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
 
 
 
-// clean it 
-// checking background
-// specify for Comb samples first, to understand the physics
-iFinalStatesIndex truthFindCombBkg(TClonesArray* branchParticle, Int_t _print) {
-    // {{{ 
-    iFinalStatesIndex iFS; 
-    Int_t nParticles = branchParticle->GetEntries();
-
-    // check if it is signal
-    Int_t BBbar;
-    iFinalStatesIndex iFS_sig = truthFindSig(branchParticle, &BBbar);
-    
-    // check there are target final states
-    // (and at least one kaon-kaon pair that has opposite charge), exactly 1 mu+ and 1 mu-
-    Int_t foundKaonKaon = 0;
-    Int_t foundMup = 0;
-    Int_t foundMum = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (abs(particle->PID) != 13 && particle->PID != 321) continue;
-        // check there are two opposite charged muons
-        if (particle->PID == 13) foundMup += 1;
-        if (particle->PID == -13) foundMum += 1;
-        for (Int_t ip2 = 0; ip2 < nParticles; ip2++) {
-            GenParticle* particle2 = (GenParticle*)branchParticle->At(ip2);
-            // check there are Kaon and Pion and with opposite charge
-            if (particle->PID == 321 && particle2->PID == -321 && particle->Charge + particle2->Charge == 0) foundKaonKaon += 1; 
-        }
-    }
-
-    // ============================
-    // || To understand the phys ||
-    // ============================
-    // -- check if there is a real phi --
-    // to estimate the fake-phi bkg (although should be very small)
-    Int_t havePhi = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        // if there is at least one phi, then can break the loop 
-        if (abs(particle->PID) == 333) { iFS._havePhi = 1; break; }
-    }
-
-    // -- check if the mu+ mu- are decayed from the resonance (like J/\psi) --
-    // since previously has already force there is just 1 mu+, 1 mu- (the if statement is below)
-    // so we dont need to count here, instead directly check their mother index
-    Int_t muMidx = -1;
-    Int_t sameM = 0;
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        // select muons
-        if (not (abs(particle->PID) == 13 && particle->M1 != -1)) continue;
-
-        // if the second muon has the same mother as the first one
-        if (muMidx == particle->M1) {
-            GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-            cout << particleM->PID << endl;
-            sameM = 1;
-            break;
-        }
-        muMidx = particle->M1;
-    }
-    // make sure the 2 muons themselves form a resonance,
-    // **NOT from radiation or what (e.g. ? > mu+ mu- gamma)
-    // so the following check how many particles share the same mother tagged above
-    Int_t nSame = 0;
-    if (sameM) { 
-        for (Int_t ip = 0; ip < nParticles; ip++) {
-            GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-            if (particle->M1 == muMidx) {
-                nSame += 1;
-                
-                cout << " " << particle->PID << endl;
-            }
-        }
-    }
-    cout << nSame << endl;
-    if (nSame == 2) iFS._DimuRes = 1; 
-    cout << "... " << iFS._DimuRes << endl;
-
-    // ------------------------------------------------------------------------------------------------------------------------------
-    // // check if the 4 final state particles are from the same b
-    // cout << "...." << endl;
-    Int_t Midx;
-    Int_t Midx_store;
-    vector<Int_t> muMs = {};
-    vector<Int_t> kaMs = {};
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (particle->M1 == -1) continue;
-        if ((abs(particle->PID) != 13) && abs(particle->PID) != 321) continue;
-        Midx = particle->M1;
-        GenParticle* particleM;
-        while (true) { 
-            particleM = (GenParticle*)branchParticle->At(Midx);
-            Midx_store = Midx;
-            Midx = particleM->M1;
-            if (abs(particleM->PID)/100 == 5 || Midx == -1) break;
-        }
-        if (Midx == -1 || abs(particleM->PID)/100 == 0) continue;
-        if (abs(particle->PID) == 13) muMs.push_back(Midx_store);
-        if (abs(particle->PID) == 321) kaMs.push_back(Midx_store);
-        // cout << particle->PID << "; " << particleM->PID << "; " << Midx_store << endl;
-    }
-
-    Int_t Bidx;
-    Int_t isCascade = 0;
-    Int_t c1 = 0;
-    for (Int_t midx1 : muMs) {
-        Int_t c2 = 0;
-        for (Int_t midx2 : muMs) {
-            if (c1 == c2) continue;
-            Int_t c3 = 0;
-            for (Int_t midx3 : kaMs) {
-                Int_t c4 = 0;
-                for (Int_t midx4 : kaMs) {
-                    if (c3 == c4) continue;
-                    
-                    if (midx1 == midx2 && midx2 == midx3 && midx3 == midx4) {
-                        // cout <<"/////////////////////////////////////" << endl;
-                        isCascade = 1;
-                        Bidx = midx1;
-                        break;
-                    }
-                    c4 += 1;
-                }
-                if (isCascade) break;
-                c3 += 1;
-            }
-            if (isCascade) break;
-            c2 += 1;
-        }
-        if (isCascade) break;
-        c1 += 1;
-    }
-    iFS._isCascade = isCascade;
-    if (isCascade) {
-        GenParticle* particleB = (GenParticle*)branchParticle->At(Bidx);
-        iFS._BPID = particleB->PID;
-    }
-
-    if (isCascade == 1) {
-
-        Int_t sameMCount = 0;
-        for (Int_t ip = 0; ip < nParticles; ip++) {
-            GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-            if (particle->M1 == -1) continue;
-            if (particle->Status != 1) continue;
-            Midx = particle->M1;
-            GenParticle* particleM;
-            while (true) { 
-                particleM = (GenParticle*)branchParticle->At(Midx);
-                Midx_store = Midx;
-                Midx = particleM->M1;
-                if (Midx == Bidx) {
-                    // cout << particle->PID << endl;
-                    sameMCount += 1;
-                    break;
-                }
-                if (abs(particleM->PID)/100 == 5 || Midx == -1) break;
-            }
-            
-        }
-        // cout << sameMCount << endl;
-        // cout << endl;
-        if (sameMCount == 4) iFS._sameB = 1;
-    }
-    
-
-
-    
-
-    // ------------------------------------------------------------------------------------------------------------------------------
-
-    // found such final states in truth, it counts as bkg
-    //if (foundKaonPion >= 1 && foundMup == 1 && foundMum == 1) iFS._pass = 1;
-    if (foundKaonKaon > 0 && foundMup == 1 && foundMum == 1 && iFS._DimuRes == 0) iFS._pass = 1;
-
-
-    vector<Int_t> muM = {};
-    vector<Int_t> muMM = {};
-    vector<Int_t> muMMM = {};
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (not (abs(particle->PID) == 13)) continue;
-        if (particle->M1 != -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        muM.push_back(abs(particleM->PID));
-        if (particleM->M1 != -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        muMM.push_back(abs(particleMM->PID));
-        if (particleMM->M1 != -1) continue;
-        GenParticle* particleMMM = (GenParticle*)branchParticle->At(particleMM->M1);
-        muMMM.push_back(abs(particleMMM->PID));
-    }
-    vector<Int_t> kaM = {};
-    vector<Int_t> kaMM = {};
-    vector<Int_t> kaMMM = {};
-    for (Int_t ip = 0; ip < nParticles; ip++) {
-        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-        if (not (abs(particle->PID) == 321)) continue;
-        if (particle->M1 != -1) continue;
-        GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-        muM.push_back(abs(particleM->PID));
-        if (particleM->M1 != -1) continue;
-        GenParticle* particleMM = (GenParticle*)branchParticle->At(particleM->M1);
-        muMM.push_back(abs(particleMM->PID));
-        if (particleMM->M1 != -1) continue;
-        GenParticle* particleMMM = (GenParticle*)branchParticle->At(particleMM->M1);
-        muMMM.push_back(abs(particleMMM->PID));
-    }
-    vector<Int_t> muArr[3] = { muM, muMM, muMMM };
-    
-
-
-
-
-    // print out where the muons decays from (to understand the physics)
-    if (iFS._pass == 1 && iFS._DimuRes != 1 && _print) { 
-        // check number of B mesons   
-        Int_t nB = 0;
-        for (Int_t ip = 0; ip < nParticles; ip++) {
-            GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-            if (particle->M1 == -1) continue;
-            GenParticle* particleM = (GenParticle*)branchParticle->At(particle->M1);
-            if (abs(particleM->PID / 100) == 5) continue;  // exclude those with mother being B meson (avoid double counting)
-            if (abs(particle->PID / 100) == 5 || abs(particle->PID / 1000) == 5) nB += 1;
-        }
-        cout << " nB: "  << nB << endl;
-
-        Int_t Midx;
-        Int_t nMu_ = 0; // number of muon, used to flag the dot product
-        for (Int_t ip = 0; ip < nParticles; ip++) {
-            GenParticle* particle = (GenParticle*)branchParticle->At(ip);
-            GenParticle* particle_cp;
-            Midx = particle->M1;
-
-            // check where the muon from 
-            if ((abs(particle->PID) == 13 || abs(particle->PID) == 321) && Midx != -1){
-            // if ((particle->PID == 22 || abs(particle->PID) == 13 || abs(particle->PID) == 321) && Midx != -1){
-                // momentum of the muon
-                cout << "\n Particle: " << particle->PID << "; p=(" << particle->P4().Px() << ", " << particle->P4().Py() << ", "  << particle->P4().Pz() << ")"  << endl;
-                /*
-                if (nMu_ == 1) { 
-                    cout << "     Dot: " << particle_cp->P4().Px() * particle->P4().Px() + 
-                                            particle_cp->P4().Py() * particle->P4().Py() + 
-                                            particle_cp->P4().Pz() * particle->P4().Pz() << endl;
-                }
-                */
-                nMu_ += 1;
-                particle_cp = particle; // store the 4 momentum of the first muon, for later dot product calculation
-                // loop over the decay chain
-                GenParticle* particleM;
-                while (true) { 
-                    particleM = (GenParticle*)branchParticle->At(Midx);
-                    cout << " " << particleM->PID << " (" <<Midx << ")";
-                    Midx = particleM->M1;
-                    // stop when reach the B meson
-                    if (abs(particleM->PID) == 5 || abs(particleM->PID)/100 == 5 || abs(particleM->PID)/1000 == 5 || Midx == -1) break;
-                    cout << " <";
-                }
-                cout << endl;
-            }
-        }
-        // cout << "................................................."<< endl;
-    }
-
-
-    return iFS;
-    // }}}
-}
-
-
-
-
 vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {  
     // {{{ store te indeces of the PID wanted into a vector
     // loop over the tracks, and store the indexes of the PID wanted into a vector
@@ -476,7 +203,6 @@ vector<Int_t> findPID(TClonesArray* branchTrack, Int_t pid, Int_t sign) {
     return v;
     // }}}
 }
-
 
 
 
@@ -601,9 +327,7 @@ void reco(Int_t type) {
         inputFile = "../data/detector/ee2Z2Bs2PhiMuMu_1M_seed0.root";
         oF_st = "../data/reco/ee2Z2Bs2PhiMuMu_reco.root";
     } else if (type == 2) {
-        // inputFile = "../data/detector/ee2Z2b_comb_1M_seed0_1M_seed1_1M_seed2_2M_seed3.root";
-        // oF_st = "../data/reco/ee2Z2b_comb_reco.root";
-        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0-10M_seed1-10M_seed2-10M_seed3.root";
+        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0-10M_seed1-10M_seed2-10M_seed3-10M_seed4-25M_seed5-25M_seed6-25M_seed7-25M_seed8.root";
         oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
     }
 
@@ -627,59 +351,35 @@ void reco(Int_t type) {
     Features* features = new Features;
     tr.Branch("features", &features);
 
-
     numberOfEntries = 100;
 
     Int_t nEvt = 0; // number of true events
     Int_t nFS = 0;  // numver of events that have tagged final states
-
     Int_t nFS_truth = 0;
-
-    Int_t nHavePhi = 0;
-    Int_t nDimuRes = 0;
-    Int_t nIsCascade = 0;
-    Int_t nIsCascade_selected = 0;
-    Int_t nB0Cascade = 0;
-    Int_t nB0Cascade_selected = 0;
-    Int_t nBpCascade = 0;
-    Int_t nBpCascade_selected = 0;
-    Int_t nBsCascade = 0;
-    Int_t nBsCascade_selected = 0;
-
-    Int_t nSameBCount = 0;
-    Int_t nSameBCount_selected = 0;
-
     
-    
+
+
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
         if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
-
-
-        /*
-        if (i_en != 716 && i_en != 879 && i_en != 1387 && i_en != 1815 &&
-            i_en != 2220 && i_en != 2501 && i_en != 2887 && i_en != 4654) continue;
-        */
-    
         cout.flush();
-
 
         // ===================
         // ||     Truth     ||
         // ===================
         Int_t BBbar;    // Bs or bar{Bs}
         iFinalStatesIndex iFS_truth ;
-        if (type == 1) { 
-            iFS_truth = truthFindSig(branchParticle, &BBbar);        
-        } else if (type == 2) {
-            //iFS_truth = truthFindCombBkg(branchParticle, 1);     // print out the strings   
-            iFS_truth = truthFindCombBkg(branchParticle, 0);        
-        } else {
-            iFS_truth._pass = 1;
+        iFS_truth = truthFindSig(branchParticle, &BBbar);        
+        // check in truth level and see if the event is in the category that we want
+        if (type != 1 && type != 2) {
+            cout << "Wrong Type input" << endl;
+            continue;
+        } else if (type == 1 && iFS_truth._pass != 1) { // targeting signal, and we found it in truth level
+            continue;   
+        } else if (type == 2 && iFS_truth._pass == 1) {
+            continue;
         }
-        
-        if (iFS_truth._pass != 1) continue;
         nEvt += 1;
 
         if (iFS_truth._havePhi == 1) nHavePhi += iFS_truth._havePhi;
@@ -700,15 +400,7 @@ void reco(Int_t type) {
         iFinalStatesIndex iFS = findFinalStatesIndex(branchTrack);
         if (iFS.foundAll == 0) continue;
         nFS += 1;
-        if (iFS_truth._isCascade == 1) {
-            nIsCascade_selected += 1;
-            if (abs(iFS_truth._BPID) == 511) nB0Cascade_selected += 1; 
-            if (abs(iFS_truth._BPID) == 521) nBpCascade_selected += 1; 
-            if (abs(iFS_truth._BPID) == 531) nBsCascade_selected += 1; 
-            if (iFS_truth._sameB == 1) nSameBCount_selected += 1; 
-        }
 
-        cout << "Pass" << endl;
 
         // define final state lorentz vector 
         TLorentzVector kaonpV, kaonmV, phiV, muonpV, muonmV, BsV, dimuV;
@@ -734,18 +426,6 @@ void reco(Int_t type) {
         
         Float_t cosTheta = (muonpV_cp.Px() * muonmV_cp.Px() + muonpV_cp.Py() * muonmV_cp.Py() + muonpV_cp.Pz() * muonmV_cp.Pz())
                             / (calLength(muonpV_cp.Px(), muonpV_cp.Py(), muonpV_cp.Pz()) * calLength(muonmV_cp.Px(), muonmV_cp.Py(), muonmV_cp.Pz()));
-
-
-        /*
-        cout << kaonpV.Px() << ", "  << kaonpV.Py() << ", "  << kaonpV.Pz() << endl;
-        cout << kaonmV.Px() << ", "  << kaonmV.Py() << ", "  << kaonmV.Pz() << endl;
-        cout << muonpV.Px() << ", "  << muonpV.Py() << ", "  << muonpV.Pz() << endl;
-        cout << muonmV.Px() << ", "  << muonmV.Py() << ", "  << muonmV.Pz() << endl;
-
-        cout << "....................................................................................................... " << iFS.Chi2 << endl;
-        */
-
-        // if (iFS_truth._sameB == 1) cout << " ///////////////////////////////////////////////////////////////////" << i_en << ";  " << iFS.Chi2 << endl;
 
 
         // ===================
@@ -788,18 +468,6 @@ void reco(Int_t type) {
     cout << endl;
     cout << "Simulation samples: " << numberOfEntries << endl;
     cout << "# of truth: " << nEvt << " (" << 100*float(nEvt)/float(numberOfEntries) << "% of the simulation)" << endl;
-    if (type == 2) {
-        cout << "havePhi: "<< nHavePhi << " (" << 100*float(nHavePhi)/float(nEvt) << "% of the truth level)" << endl;
-        cout << "nDimuRes:  "<< nDimuRes << " (" << 100*float(nDimuRes)/float(nEvt) << "% of the truth level)" << endl;
-        cout << "niscascade: " << nIsCascade << " (" << 100*float(nIsCascade)/float(nEvt) << "% of the truth level)" << endl;
-        cout << "niscascade_selected: " << nIsCascade_selected << " (" << 100*float(nIsCascade_selected)/float(nFS) << "%)" << endl; 
-        cout << "Cascade from B0: " << nB0Cascade_selected << " (" << 100*float(nB0Cascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
-        cout << "Cascade from B+: " << nBpCascade_selected << " (" << 100*float(nBpCascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
-        cout << "Cascade from Bs: " << nBsCascade_selected << " (" << 100*float(nBsCascade_selected)/float(nIsCascade_selected) << "%)" << endl; 
-        cout << "nSameBCount: " << nSameBCount << " (" << 100*float(nSameBCount)/float(nEvt) << "%)" << endl; 
-        cout << "nSameBCount_selected: " << nSameBCount_selected << " (" << 100*float(nSameBCount_selected)/float(nFS) << "%)" << endl; 
-    }
-
     cout << " Reco. eff.: " << nFS << "/" << nEvt << "(" << float(nFS)/float(nEvt)*100 << "%)" << endl;
     cout << endl;
     tr.Write();
