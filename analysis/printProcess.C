@@ -1,5 +1,6 @@
 // example:
-// root -q 'printProcess.C(1)' means printing out the truth level information 
+// root -q 'printProcess.C(2, 1)' means printing out the truth level information 
+
 
 
 
@@ -38,12 +39,18 @@ Float_t calCosTheta(TVector3 aV, TVector3 bV) {
 
 
 
+struct finalIdx {
+    Int_t iKp = -1;
+    Int_t iKm = -1;
+    Int_t iMp = -1;
+    Int_t iMm = -1;
+};
 
-
-Int_t checkDir(TClonesArray* branchParticle) {
+Int_t checkDir(TClonesArray* branchParticle, finalIdx* iFS) {
     // {{{ check the direction of the 4 final states particle
     Int_t sameDir = 0;
     Int_t nParticles = branchParticle->GetEntries();
+    finalIdx iFS_;
 
     // look for mu+
     for (Int_t ipmp = 0; ipmp < nParticles; ipmp++) {
@@ -74,10 +81,15 @@ Int_t checkDir(TClonesArray* branchParticle) {
                         particleMm->Px*particleKm->Px + particleMm->Py*particleKm->Py + particleMm->Pz*particleKm->Pz < 0 || 
                         particleKp->Px*particleKm->Px + particleKp->Py*particleKm->Py + particleKp->Pz*particleKm->Pz < 0) continue;
                     sameDir = 1;
+                    iFS_.iKp = ipkp;
+                    iFS_.iKm = ipkm;
+                    iFS_.iMp = ipmp;
+                    iFS_.iMm = ipmm;
                 }
             }
         }
     }
+    *iFS = iFS_; 
     return sameDir;
     // }}}
 }
@@ -189,12 +201,12 @@ Int_t checkMuRes(TClonesArray* branchParticle) {
     // }}}
 }
 
-void printChain(TClonesArray* branchParticle) {
+void printChain(TClonesArray* branchParticle, finalIdx iFS) {
     //{{{ print out the decay chain
     Int_t nParticles = branchParticle->GetEntries();
     Int_t Midx;
-    cout << endl;
     for (Int_t ip = 0; ip < nParticles; ip++) {
+        if (ip != iFS.iKp && ip != iFS.iKm && ip != iFS.iMp && ip != iFS.iMm) continue;
         GenParticle* particle = (GenParticle*)branchParticle->At(ip);
         if (particle->M1 == -1) continue;
         if ((abs(particle->PID) != 13) && abs(particle->PID) != 321) continue;
@@ -224,10 +236,11 @@ struct flags {
 flags truthLevelPhys(TClonesArray* branchParticle, Int_t print) {
     flags F;
     
-    F.sameDir  = checkDir(branchParticle);
+    finalIdx iFS;
+    F.sameDir  = checkDir(branchParticle, &iFS);
     F.havePhi  = checkPhi(branchParticle);
     F.fromRes  = checkMuRes(branchParticle);
-    if (print) printChain(branchParticle);
+    if (print) printChain(branchParticle, iFS);
 
     return F;
 }
@@ -280,15 +293,15 @@ void printProcess(Int_t type, Int_t print) {
     Int_t nFromRes = 0;
 
 
-    numberOfEntries = 10000;
+    numberOfEntries = 560;
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
-        if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
-        cout.flush();
+        //if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
+        //cout.flush();
 
 
-        if (print) cout << "Event: " << i_en << endl;
+        if (print) cout << "\n\n\n --------------------------------------------------------------------------------- \nEvent: " << i_en << endl;
         // ===================
         // ||     Truth     ||
         // ===================
