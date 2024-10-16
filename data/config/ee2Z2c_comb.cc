@@ -11,8 +11,7 @@ int main() {
     // Interface for conversion from Pythia8::Event to HepMC event.
     HepMC::Pythia8ToHepMC ToHepMC;
     // Specify file where HepMC events will be stored.
-    // HepMC::IO_GenEvent ascii_io("./hepmc_data/ee2Z2b_comb_2M_seed3.hepmc", std::ios::out);
-    HepMC::IO_GenEvent ascii_io("./hepmc_data/ee2Z2b_comb_cutted_25M_seed22.hepmc", std::ios::out);
+    HepMC::IO_GenEvent ascii_io("./hepmc_data/ee2Z2c_comb_cutted_50M_seed9.hepmc", std::ios::out);
     //========================= Settings =========================================================
     // Generator. Process selection. LHC initialization. Histogram.
     Pythia pythia;
@@ -20,13 +19,13 @@ int main() {
     pythia.readString("Beams:idA = 11");    //e-
     pythia.readString("Beams:idB = -11");   //e+
     pythia.readString("Random:setSeed =on");
-    pythia.readString("Random:seed = 22");
+    pythia.readString("Random:seed = 9");
     pythia.readString("WeakSingleBoson:ffbar2gmZ=on");
     pythia.readString("WeakSingleBoson:ffbar2gmZ=on");
-    //Z^0 > b, bbar
+    //Z^0 > c, cbar
     pythia.readString("23:onMode = off");
-    pythia.readString("23:addChannel = 1 1 100 5 -5");
-
+    pythia.readString("23:addChannel = 1 1 100 4 -4");
+  
     // https://indico.cern.ch/event/1202105/contributions/5385371/attachments/2660513/4609816/BeamInstrumentation_studies_FCCee.pdf
     // page 18  
     pythia.readString("Beams:allowVertexSpread = on");
@@ -35,7 +34,7 @@ int main() {
     pythia.readString("Beams:sigmaVertexY = 3.4e-5");
 
     Event& event = pythia.event; // Shorthand: pythia event record
-    int nEvent = 25000000;
+    int nEvent = 50000000;
     //pythia.mode("Main:numberOfEvents");
     //  int Abort = pythia.mode("Main:timesAllowErrors");
     pythia.readString("PartonLevel:MPI = off");//turn of multi-particle interactions
