@@ -226,6 +226,30 @@ void printChain(TClonesArray* branchParticle, finalIdx iFS) {
 }
 
 
+void whereJpsiFrom(TClonesArray* branchParticle) {
+    //{{{ print out the decay chain
+    Int_t nParticles = branchParticle->GetEntries();
+    Int_t Midx;
+    for (Int_t ip = 0; ip < nParticles; ip++) {
+        GenParticle* particle = (GenParticle*)branchParticle->At(ip);
+        if (particle->M1 == -1) continue;
+        if (abs(particle->PID) != 443) continue;
+        cout << endl;
+        cout << particle->PID << " (" << ip << ")";
+        Midx = particle->M1;
+        GenParticle* particleM;
+        while (true) { 
+            particleM = (GenParticle*)branchParticle->At(Midx);
+            cout << " < " << particleM->PID << " (" << Midx << ")";
+            Midx = particleM->M1;
+            if (Midx == -1 || abs(particleM->PID) == 23) break;
+        }
+        if (Midx == -1 || abs(particleM->PID)/100 == 0) continue;
+    }
+    //}}}
+}
+
+
 
 struct flags {
     Int_t sameDir = -1;
@@ -240,7 +264,8 @@ flags truthLevelPhys(TClonesArray* branchParticle, Int_t print) {
     F.sameDir  = checkDir(branchParticle, &iFS);
     F.havePhi  = checkPhi(branchParticle);
     F.fromRes  = checkMuRes(branchParticle);
-    if (print) printChain(branchParticle, iFS);
+    //if (print) printChain(branchParticle, iFS);
+    if (print) whereJpsiFrom(branchParticle);
 
     return F;
 }
@@ -293,7 +318,7 @@ void printProcess(Int_t type, Int_t print) {
     Int_t nFromRes = 0;
 
 
-    numberOfEntries = 560;
+    numberOfEntries = 1000;
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry

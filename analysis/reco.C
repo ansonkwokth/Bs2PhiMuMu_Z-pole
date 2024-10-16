@@ -1,9 +1,9 @@
 // example:
 // root -q 'reco.C(1)' means reconstruction signal event
 
-//TODO: 
-// check the _sameB part: why nu is not included
-// change the "same direction requirement
+
+
+
 
 #include <cmath>
 #include <iostream>
@@ -21,6 +21,7 @@ using namespace std;
 #include "ExRootAnalysis/ExRootResult.h"
 #include "TrackCovariance/VertexFit.h"
 #include "TrackCovariance/VertexMore.h"
+#include "ExRootAnalysis/ExRootTreeReader.h"
 #include "ExRootAnalysis/ExRootTreeReader.h"
 
 R__ADD_LIBRARY_PATH($DELPHES)
@@ -62,6 +63,7 @@ public:
     Float_t Pmup;   	// P(mu+)
     Float_t Pmum;   	// P(mu-)
     Float_t cosTheta_dimu;  // opening angle of the pair of muons
+    Float_t cosTheta_Bs;    // opening angle of DV and the 3-momentum of Bs
 			
     // Impact parameters
     Float_t D0Kp;   	// transverse IP of K+
@@ -119,7 +121,15 @@ Float_t calLength(Float_t X, Float_t Y, Float_t Z) {
 
 
 
-Float_t calCosTheta(TLorentzVector BsV, TLorentzVector muonpV, TLorentzVector muonmV) {
+Float_t calCosTheta(TVector3 aV, TVector3 bV) {
+    // {{{ getting the opening angle of two 3 vectors
+    Float_t cosTheta = (aV.Dot(bV)) / (aV.Mag() * bV.Mag());
+    return cosTheta;
+    // }}} 
+}
+
+
+Float_t calCosThetaMuMu(TLorentzVector BsV, TLorentzVector muonpV, TLorentzVector muonmV) {
     // {{{ getting the opening anlge of the pair of muons in the Bs rest frame
     TVector3 BsV3 = BsV.BoostVector();
     TLorentzVector muonpV_cp = muonpV;
@@ -127,8 +137,7 @@ Float_t calCosTheta(TLorentzVector BsV, TLorentzVector muonpV, TLorentzVector mu
     muonpV_cp.Boost(-BsV3);
     muonmV_cp.Boost(-BsV3);
     
-    Float_t cosTheta = (muonpV_cp.Px() * muonmV_cp.Px() + muonpV_cp.Py() * muonmV_cp.Py() + muonpV_cp.Pz() * muonmV_cp.Pz())
-                        / (calLength(muonpV_cp.Px(), muonpV_cp.Py(), muonpV_cp.Pz()) * calLength(muonmV_cp.Px(), muonmV_cp.Py(), muonmV_cp.Pz()));
+    Float_t cosTheta = calCosTheta(muonpV_cp.Vect(), muonmV_cp.Vect());
     return cosTheta;
     // }}}
 }
@@ -333,23 +342,73 @@ void reco(Int_t type) {
     cout << "\n\n\n\n\n\n\n\n\n\n\n";
 
     string typeName;
-    const char* inputFile;
-    string oF_st ;
-    if (type == 1) {
-        inputFile = "../data/detector/ee2Z2Bs2PhiMuMu_1M_seed0.root";
-        oF_st = "../data/reco/ee2Z2Bs2PhiMuMu_reco.root";
-    } else if (type == 2) {
-        inputFile = "../data/detector/ee2Z2b_comb_cutted_10M_seed0-10M_seed1-10M_seed2-10M_seed3-10M_seed4-25M_seed5-25M_seed6-25M_seed7-25M_seed8.root";
-        oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
-    }
-
-
 
     // Load lib, and read data
     gSystem->Load("libDelphes");
     TChain chain("Delphes");
+    const char* inputFile;
+    string oF_st ;
+
+    if (type == 1) {
+        chain.Add("../data/detector/ee2Z2Bs2PhiMuMu_1M_seed0.root");
+        oF_st = "../data/reco/ee2Z2Bs2PhiMuMu_reco.root";
+    } else if (type == 2) {
+        // chain.Add("../data/detector/ee2Z2b_comb_cutted_500M_seed0-seed22.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed0.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed1.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed2.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed3.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed4.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed5.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed6.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed7.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed8.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed9.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed10.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed11.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed12.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed13.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed14.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed15.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed16.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed17.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed18.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed19.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed20.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed21.root");
+        chain.Add("../data/detector/ee2Z2b_comb_cutted_25M_seed22.root");
+        //oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
+        // oF_st = "../data/reco/ee2Z2b_comb_cutted_reco_p1.root";
+        // oF_st = "../data/reco/ee2Z2b_comb_cutted_reco_p2.root";
+    } else if (type == 3) {
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_10M_seed0.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_10M_seed1.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_30M_seed2.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed3.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed4.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed5.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed6.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed7.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_25M_seed8.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed9.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed10.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed11.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed12.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed13.root");
+        chain.Add("../data/detector/ee2Z2c_comb_cutted_50M_seed14.root");
+        oF_st = "../data/reco/ee2Z2c_comb_cutted_reco.root";
+    }
+    cout << " ... " << endl;
+
+
+
     //TChain chain("events");
-    chain.Add(inputFile);
+    //chain.Add(inputFile);
+
+
+
+
+
     ExRootTreeReader* treeReader = new ExRootTreeReader(&chain);
     Int_t numberOfEntries = treeReader->GetEntries();
 
@@ -371,42 +430,49 @@ void reco(Int_t type) {
     
 
 
-    // numberOfEntries = 100;
+    // numberOfEntries = 1400000;
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
+    // for (Int_t i_en = 1400000; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
-        if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
+        // if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
+        if (i_en % 100000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << endl;
         cout.flush();
+
 
         // ===================
         // ||     Truth     ||
         // ===================
+        // {{{ truth level
         Int_t BBbar;    // Bs or bar{Bs}
         iFinalStatesIndex iFS_truth ;
         iFS_truth = truthFindSig(branchParticle, &BBbar);        
         // check in truth level and see if the event is in the category that we want
-        if (type != 1 && type != 2) {
+        Int_t passEvt = 0;
+        if (type != 1 && type != 2 && type != 3) {
             cout << "Wrong Type input" << endl;
-            continue;
+            passEvt = 1;
         } else if (type == 1 && iFS_truth._pass != 1) { // targeting signal, and we found it in truth level
-            continue;   
+            passEvt = 1;
         } else if (type == 2 && iFS_truth._pass == 1) { // targeting Z>bb bkg., and we found it is not signal event
-            continue;
+            passEvt = 1;
+        } else if (type == 3) { // targeting Z>cc bkg.
+            passEvt = 0;
         }
+        if (passEvt) continue;
         nEvt += 1;
+        // }}}
 
 
       
         // ===================
         // ||     Recon     ||
         // ===================
-        vector<Double_t> DV;
+        // {{{ reconstruct
         iFinalStatesIndex iFS = findFinalStatesIndex(branchTrack);
         if (iFS.foundAll == 0) continue;
         nFS += 1;
-
-
-
+    
         // define final state lorentz vector 
         TLorentzVector kaonpV, kaonmV, phiV, muonpV, muonmV, BsV, dimuV;
         Track* kaonp = (Track*)branchTrack->At(iFS.iKp);
@@ -422,12 +488,17 @@ void reco(Int_t type) {
         BsV = phiV + muonpV + muonmV;
         dimuV = muonpV + muonmV;
 
-        Float_t cosTheta = calCosTheta(BsV, muonpV, muonmV);  
+        Float_t cosThetaMuMu = calCosThetaMuMu(BsV, muonpV, muonmV);  
+        TVector3 DVV(iFS.DV[0], iFS.DV[1], iFS.DV[2]);
+        Float_t cosThetaBs = calCosTheta(BsV.Vect(), DVV);  
+        // }}}
+
 
 
         // ===================
         // ||     Store     ||
         // ===================
+        // {{{ list of features to store
         features->iEvt          =   i_en;
         features->mPhi          =   phiV.M();
         features->mBs           =   BsV.M();
@@ -453,12 +524,14 @@ void reco(Int_t type) {
         features->DZmup         =   muonp->DZ;
         features->D0mum         =   muonm->D0;
         features->DZmum         =   muonm->DZ;
-        features->cosTheta_dimu =   cosTheta;
+        features->cosTheta_dimu =   cosThetaMuMu;
+        features->cosTheta_Bs   =   cosThetaBs;
         features->DV_X_truth    =   iFS_truth.DV[0];
         features->DV_Y_truth    =   iFS_truth.DV[1];
         features->DV_Z_truth    =   iFS_truth.DV[2];
         features->DV_truth      =   calLength(iFS_truth.DV[0] - iFS_truth.PV[0], iFS_truth.DV[1] - iFS_truth.PV[1], iFS_truth.DV[2] - iFS_truth.PV[2]); 
         tr.Fill();
+        // }}}
 
 
     }
