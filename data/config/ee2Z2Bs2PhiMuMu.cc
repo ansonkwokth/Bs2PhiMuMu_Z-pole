@@ -1,3 +1,6 @@
+// Simulating e+ e- > Z, Z > b \bar{b} background, at Z-pole
+// Requring that there must be at least 1 Bs
+
 #include "Pythia8/Pythia.h"
 #include "Pythia8/Pythia.h"
 #include "Pythia8/Pythia.h"

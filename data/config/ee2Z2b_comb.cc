@@ -1,3 +1,9 @@
+// Simulating e+ e- > Z, Z > b \bar{b} background, at Z-pole
+// Requring that there must be at least 1 mu+, 1 mu-, 1 K+, 1 K-
+// To save more storing space: will apply cut: 
+// - (if there are more combinations having such final state)
+//   pairwise dot product between all these final state particles. Should be positive
+
 #include "Pythia8/Pythia.h"
 #include "Pythia8/Pythia.h"
 #include "Pythia8/Pythia.h"
