@@ -30,10 +30,10 @@ R__LOAD_LIBRARY(lib/libDelphes)
 
 
 // {{{ PDG constants
-TParticlePDG* muonPDG = TDatabasePDG::Instance()->GetParticle(13);
+TParticlePDG* muonPDG = TDatabasePDG::Instance()->GetParticle(13);  // muons
 Float_t mMuonPDG = muonPDG->Mass();
 
-TParticlePDG* KPDG = TDatabasePDG::Instance()->GetParticle(321);
+TParticlePDG* KPDG = TDatabasePDG::Instance()->GetParticle(321);    // kaons
 Float_t mKPDG = KPDG->Mass();
 // }}} 
 
@@ -42,7 +42,7 @@ Float_t mKPDG = KPDG->Mass();
 class Features {
     // {{{ store features, export for python
 public:
-    Int_t iEvt;
+    Int_t iEvt;         // event index
 
     // Vertex info.
     Float_t Chi2;	    // Bs decay vertex fit (from the 4 tracks)
@@ -94,19 +94,20 @@ struct iFinalStatesIndex {
     // {{{ store the indexes of the final state particles 
 
     // indeces of the final states
-    Int_t iKp = -1;     // K+
-    Int_t iKm = -1;     // K-
-    Int_t iMup = -1;    // mu+
-    Int_t iMum = -1;    // mu-
-    // flag indicates if all final states are found
-    Int_t foundAll = 0;
-    // vertex info (KKmumu vertex)
-    vector<Double_t> DV = { 99999, 99999, 99999 };    // fitted decay vertex
-    vector<Double_t> PV = { 99999, 99999, 99999 };    // PV vertex (for truth level for now)
-    Float_t Chi2 = 99999;       // fitted chi2 of the DV from 4 tracks 
-    Float_t Chi2_KK = 99999;    // fitted chi2 of the vertex from only K+K- tracks
+    Int_t iKp       = -1;   // K+
+    Int_t iKm       = -1;   // K-
+    Int_t iMup      = -1;   // mu+
+    Int_t iMum      = -1;   // mu-
+    Int_t foundAll  = 0;    // flag indicates if all final states are found
 
-    Int_t _pass = 0;        // for truth level
+    // vertex info (KKmumu vertex)
+    vector<Double_t> DV     = { 99999, 99999, 99999 };    // fitted decay vertex
+    vector<Double_t> PV     = { 99999, 99999, 99999 };    // PV vertex (for truth level for now)
+    Float_t Chi2            = 99999;    // fitted chi2 of the DV from 4 tracks 
+    Float_t Chi2_KK         = 99999;    // fitted chi2 of the vertex from only K+K- tracks
+
+    // for truth level
+    Int_t _pass = 0;       
 
     // }}}
 };
@@ -151,11 +152,11 @@ iFinalStatesIndex truthFindSig(TClonesArray* branchParticle, Int_t* BBbar) {
 
     // find the final state particles
     Int_t foundKaonKaon = 0;
-    Int_t foundMup = 0;
-    Int_t foundMum = 0;
+    Int_t foundMup      = 0;
+    Int_t foundMum      = 0;
 
-    Int_t iBs = -99999;
-    Int_t nBs = 0;  // number of Bs
+    Int_t iBs = -99999; // index of Bs
+    Int_t nBs = 0;      // number of Bs
 
     // check how many Bs
     for (Int_t ip = 0; ip < nParticles; ip++) {
@@ -234,11 +235,11 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
     iFinalStatesIndex iFS;
 
     // store all kaon PID
-    vector<Int_t> vKp = findPID(branchTrack, 321, 1);
-    vector<Int_t> vKm = findPID(branchTrack, -321, 1);
+    vector<Int_t> vKp   = findPID(branchTrack, 321, 1);
+    vector<Int_t> vKm   = findPID(branchTrack, -321, 1);
     // store all muon PID
-    vector<Int_t> vMup = findPID(branchTrack, -13, 1);
-    vector<Int_t> vMum = findPID(branchTrack, 13, 1);
+    vector<Int_t> vMup  = findPID(branchTrack, -13, 1);
+    vector<Int_t> vMum  = findPID(branchTrack, 13, 1);
 
     // store the best combination giving min chi2
     Float_t minChi2 = 99999;
@@ -338,9 +339,7 @@ iFinalStatesIndex findFinalStatesIndex(TClonesArray* branchTrack) {
 
 
 void reco(Int_t type) {
-
     cout << "\n\n\n\n\n\n\n\n\n\n\n";
-
     string typeName;
 
     // Load lib, and read data
@@ -349,10 +348,10 @@ void reco(Int_t type) {
     const char* inputFile;
     string oF_st ;
 
-    if (type == 1) {
+    if (type == 1) {    // signal
         chain.Add("../data/detector/ee2Z2Bs2PhiMuMu_1M_seed0.root");
         oF_st = "../data/reco/ee2Z2Bs2PhiMuMu_reco.root";
-    } else if (type == 2) {
+    } else if (type == 2) { // Z>bb
         // chain.Add("../data/detector/ee2Z2b_comb_cutted_500M_seed0-seed22.root");
         chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed0.root");
         chain.Add("../data/detector/ee2Z2b_comb_cutted_10M_seed1.root");
@@ -380,7 +379,7 @@ void reco(Int_t type) {
         //oF_st = "../data/reco/ee2Z2b_comb_cutted_reco.root";
         // oF_st = "../data/reco/ee2Z2b_comb_cutted_reco_p1.root";
         // oF_st = "../data/reco/ee2Z2b_comb_cutted_reco_p2.root";
-    } else if (type == 3) {
+    } else if (type == 3) { //Z>cc
         chain.Add("../data/detector/ee2Z2c_comb_cutted_10M_seed0.root");
         chain.Add("../data/detector/ee2Z2c_comb_cutted_10M_seed1.root");
         chain.Add("../data/detector/ee2Z2c_comb_cutted_30M_seed2.root");
@@ -399,13 +398,8 @@ void reco(Int_t type) {
         oF_st = "../data/reco/ee2Z2c_comb_cutted_reco.root";
     }
     cout << " ... " << endl;
-
-
-
     //TChain chain("events");
     //chain.Add(inputFile);
-
-
 
 
 
@@ -430,14 +424,12 @@ void reco(Int_t type) {
     
 
 
-    // numberOfEntries = 1400000;
     // loop over events
     for (Int_t i_en = 0; i_en < numberOfEntries; i_en++) {
-    // for (Int_t i_en = 1400000; i_en < numberOfEntries; i_en++) {
         treeReader->ReadEntry(i_en);  // reading the entry
-        // if (i_en % 1000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << "\r";
-        if (i_en % 100000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << endl;
+        if (i_en % 10000 == 0) cout << " Event: " << i_en << "/" << numberOfEntries << "(" << float(i_en) / float(numberOfEntries) * 100 << "%)" << endl;
         cout.flush();
+
 
 
         // ===================
